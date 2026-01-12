@@ -1,153 +1,236 @@
 const canvas = document.getElementById('pong');
-const ctx = canvas.getContext('2d');
+const context = canvas.getContext('2d');
 
-const WIDTH = canvas.width;
-const HEIGHT = canvas.height;
+// Game state
+let isPaused = false;
+let gameStarted = false;
 
-// Paddle properties
-const PADDLE_WIDTH = 15;
-const PADDLE_HEIGHT = 100;
-const PADDLE_MARGIN = 20;
-const PADDLE_SPEED = 5;
-
-// Ball properties
-const BALL_SIZE = 16;
-const BALL_SPEED = 6;
-
-// Left (player) paddle
-const leftPaddle = {
-    x: PADDLE_MARGIN,
-    y: HEIGHT / 2 - PADDLE_HEIGHT / 2,
-    width: PADDLE_WIDTH,
-    height: PADDLE_HEIGHT,
-    dy: 0
+// Create paddles
+const user = {
+    x: 0,
+    y: canvas.height / 2 - 100 / 2,
+    width: 10,
+    height: 100,
+    color: 'WHITE',
+    score: 0
 };
 
-// Right (AI) paddle
-const rightPaddle = {
-    x: WIDTH - PADDLE_MARGIN - PADDLE_WIDTH,
-    y: HEIGHT / 2 - PADDLE_HEIGHT / 2,
-    width: PADDLE_WIDTH,
-    height: PADDLE_HEIGHT,
-    dy: 0
+const com = {
+    x: canvas.width - 10,
+    y: canvas.height / 2 - 100 / 2,
+    width: 10,
+    height: 100,
+    color: 'WHITE',
+    score: 0
 };
 
-// Ball
+// Create ball
 const ball = {
-    x: WIDTH / 2 - BALL_SIZE / 2,
-    y: HEIGHT / 2 - BALL_SIZE / 2,
-    size: BALL_SIZE,
-    speedX: BALL_SPEED * (Math.random() < 0.5 ? 1 : -1),
-    speedY: BALL_SPEED * (Math.random() * 2 - 1)
+    x: canvas.width / 2,
+    y: canvas.height / 2,
+    radius: 10,
+    speed: 5,
+    velocityX: 5,
+    velocityY: 5,
+    color: 'WHITE'
 };
 
-function resetBall() {
-    ball.x = WIDTH / 2 - BALL_SIZE / 2;
-    ball.y = HEIGHT / 2 - BALL_SIZE / 2;
-    ball.speedX = BALL_SPEED * (Math.random() < 0.5 ? 1 : -1);
-    ball.speedY = BALL_SPEED * (Math.random() * 2 - 1);
+// Create net
+const net = {
+    x: canvas.width / 2 - 2 / 2,
+    y: 0,
+    width: 2,
+    height: 10,
+    color: 'WHITE'
+};
+
+// Draw rectangle
+function drawRect(x, y, w, h, color) {
+    context.fillStyle = color;
+    context.fillRect(x, y, w, h);
 }
 
-// Draw paddles and ball
-function draw() {
-    ctx.clearRect(0, 0, WIDTH, HEIGHT);
+// Draw circle
+function drawCircle(x, y, r, color) {
+    context.fillStyle = color;
+    context.beginPath();
+    context.arc(x, y, r, 0, Math.PI * 2, false);
+    context.closePath();
+    context.fill();
+}
 
+// Draw text
+function drawText(text, x, y, color) {
+    context.fillStyle = color;
+    context.font = '45px fantasy';
+    context.fillText(text, x, y);
+}
+
+// Draw net
+function drawNet() {
+    for (let i = 0; i <= canvas.height; i += 15) {
+        drawRect(net.x, net.y + i, net.width, net.height, net.color);
+    }
+}
+
+// Draw pause overlay
+function drawPauseScreen() {
+    context.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    
+    context.fillStyle = 'WHITE';
+    context.font = '60px fantasy';
+    context.textAlign = 'center';
+    context.fillText('PAUSED', canvas.width / 2, canvas.height / 2 - 20);
+    
+    context.font = '25px fantasy';
+    context.fillText('Press SPACE to resume', canvas.width / 2, canvas.height / 2 + 30);
+    context.textAlign = 'left';
+}
+
+// Render game
+function render() {
+    // Clear canvas
+    drawRect(0, 0, canvas.width, canvas.height, 'BLACK');
+    
     // Draw net
-    ctx.fillStyle = '#444';
-    for (let i = 0; i < HEIGHT; i += 30) {
-        ctx.fillRect(WIDTH/2 - 2, i, 4, 20);
-    }
-
-    // Draw left paddle
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(leftPaddle.x, leftPaddle.y, leftPaddle.width, leftPaddle.height);
-
-    // Draw right paddle
-    ctx.fillRect(rightPaddle.x, rightPaddle.y, rightPaddle.width, rightPaddle.height);
-
+    drawNet();
+    
+    // Draw score
+    drawText(user.score, canvas.width / 4, canvas.height / 5, 'WHITE');
+    drawText(com.score, 3 * canvas.width / 4, canvas.height / 5, 'WHITE');
+    
+    // Draw paddles
+    drawRect(user.x, user.y, user.width, user.height, user.color);
+    drawRect(com.x, com.y, com.width, com.height, com.color);
+    
     // Draw ball
-    ctx.beginPath();
-    ctx.arc(ball.x + ball.size/2, ball.y + ball.size/2, ball.size/2, 0, Math.PI * 2, false);
-    ctx.fillStyle = '#fff';
-    ctx.fill();
+    drawCircle(ball.x, ball.y, ball.radius, ball.color);
+    
+    // Draw pause screen if paused
+    if (isPaused) {
+        drawPauseScreen();
+    }
 }
 
-// Update game state
+// Control user paddle
+canvas.addEventListener('mousemove', movePaddle);
+
+function movePaddle(evt) {
+    if (!isPaused) {
+        let rect = canvas.getBoundingClientRect();
+        user.y = evt.clientY - rect.top - user.height / 2;
+    }
+}
+
+// Keyboard controls for pause
+document.addEventListener('keydown', (e) => {
+    if (e.code === 'Space') {
+        e.preventDefault();
+        if (gameStarted) {
+            togglePause();
+        }
+    }
+});
+
+// Toggle pause function
+function togglePause() {
+    isPaused = !isPaused;
+    const pauseBtn = document.getElementById('pauseBtn');
+    if (pauseBtn) {
+        pauseBtn.textContent = isPaused ? 'Resume' : 'Pause';
+    }
+}
+
+// Pause button handler
+function pauseGame() {
+    if (gameStarted) {
+        togglePause();
+    }
+}
+
+// Collision detection
+function collision(b, p) {
+    b.top = b.y - b.radius;
+    b.bottom = b.y + b.radius;
+    b.left = b.x - b.radius;
+    b.right = b.x + b.radius;
+    
+    p.top = p.y;
+    p.bottom = p.y + p.height;
+    p.left = p.x;
+    p.right = p.x + p.width;
+    
+    return b.right > p.left && b.bottom > p.top && b.left < p.right && b.top < p.bottom;
+}
+
+// Reset ball
+function resetBall() {
+    ball.x = canvas.width / 2;
+    ball.y = canvas.height / 2;
+    ball.speed = 5;
+    ball.velocityX = -ball.velocityX;
+}
+
+// Update game
 function update() {
+    if (isPaused) {
+        return;
+    }
+    
+    gameStarted = true;
+    
     // Move ball
-    ball.x += ball.speedX;
-    ball.y += ball.speedY;
-
-    // Wall collision (top/bottom)
-    if (ball.y <= 0) {
-        ball.y = 0;
-        ball.speedY *= -1;
+    ball.x += ball.velocityX;
+    ball.y += ball.velocityY;
+    
+    // Simple AI for computer
+    com.y += (ball.y - (com.y + com.height / 2)) * 0.1;
+    
+    // Ball collision with top and bottom walls
+    if (ball.y + ball.radius > canvas.height || ball.y - ball.radius < 0) {
+        ball.velocityY = -ball.velocityY;
     }
-    if (ball.y + ball.size >= HEIGHT) {
-        ball.y = HEIGHT - ball.size;
-        ball.speedY *= -1;
+    
+    // Check which paddle is being hit
+    let player = (ball.x < canvas.width / 2) ? user : com;
+    
+    // Check collision with paddles
+    if (collision(ball, player)) {
+        // Calculate where ball hit the paddle
+        let collidePoint = ball.y - (player.y + player.height / 2);
+        collidePoint = collidePoint / (player.height / 2);
+        
+        // Calculate angle in radians
+        let angleRad = collidePoint * Math.PI / 4;
+        
+        // Direction of ball when hit
+        let direction = (ball.x < canvas.width / 2) ? 1 : -1;
+        
+        // Change velocity
+        ball.velocityX = direction * ball.speed * Math.cos(angleRad);
+        ball.velocityY = ball.speed * Math.sin(angleRad);
+        
+        // Increase speed
+        ball.speed += 0.1;
     }
-
-    // Paddle collision (left)
-    if (
-        ball.x <= leftPaddle.x + leftPaddle.width &&
-        ball.y + ball.size >= leftPaddle.y &&
-        ball.y <= leftPaddle.y + leftPaddle.height
-    ) {
-        ball.x = leftPaddle.x + leftPaddle.width;
-        ball.speedX *= -1;
-        // Add some "spin"
-        let collidePoint = (ball.y + ball.size/2) - (leftPaddle.y + leftPaddle.height/2);
-        collidePoint = collidePoint / (leftPaddle.height/2);
-        let angle = collidePoint * Math.PI/4;
-        ball.speedY = BALL_SPEED * Math.sin(angle);
-    }
-
-    // Paddle collision (right)
-    if (
-        ball.x + ball.size >= rightPaddle.x &&
-        ball.y + ball.size >= rightPaddle.y &&
-        ball.y <= rightPaddle.y + rightPaddle.height
-    ) {
-        ball.x = rightPaddle.x - ball.size;
-        ball.speedX *= -1;
-        // Add some "spin"
-        let collidePoint = (ball.y + ball.size/2) - (rightPaddle.y + rightPaddle.height/2);
-        collidePoint = collidePoint / (rightPaddle.height/2);
-        let angle = collidePoint * Math.PI/4;
-        ball.speedY = BALL_SPEED * Math.sin(angle);
-    }
-
-    // Point scored (left or right wall)
-    if (ball.x < 0 || ball.x > WIDTH) {
+    
+    // Update score
+    if (ball.x - ball.radius < 0) {
+        com.score++;
+        resetBall();
+    } else if (ball.x + ball.radius > canvas.width) {
+        user.score++;
         resetBall();
     }
-
-    // AI paddle movement (simple follow)
-    if (ball.y + ball.size/2 > rightPaddle.y + rightPaddle.height/2) {
-        rightPaddle.y += PADDLE_SPEED;
-    } else if (ball.y + ball.size/2 < rightPaddle.y + rightPaddle.height/2) {
-        rightPaddle.y -= PADDLE_SPEED;
-    }
-    // Prevent AI from going out of bounds
-    rightPaddle.y = Math.max(0, Math.min(HEIGHT - rightPaddle.height, rightPaddle.y));
 }
-
-// Mouse control for left paddle
-canvas.addEventListener('mousemove', function(e) {
-    const rect = canvas.getBoundingClientRect();
-    let mouseY = e.clientY - rect.top;
-    leftPaddle.y = mouseY - leftPaddle.height / 2;
-    // Prevent paddle from going out of bounds
-    if (leftPaddle.y < 0) leftPaddle.y = 0;
-    if (leftPaddle.y + leftPaddle.height > HEIGHT) leftPaddle.y = HEIGHT - leftPaddle.height;
-});
 
 // Game loop
 function gameLoop() {
     update();
-    draw();
+    render();
     requestAnimationFrame(gameLoop);
 }
 
+// Start game
 gameLoop();
